@@ -1,0 +1,385 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Staff Attendance System</title>
+  <script>
+    let staffList = JSON.parse(localStorage.getItem("staffList")) || [];
+    let attendanceRecords = JSON.parse(localStorage.getItem("attendance")) || [];
+    let adminPassword = localStorage.getItem("adminPassword") || "admin123";
+
+    function login() {
+      const pass = document.getElementById("adminPass").value;
+      if (pass === adminPassword) {
+        document.getElementById("loginContainer").classList.add("hidden");
+        document.getElementById("mainApp").classList.remove("hidden");
+        loadStaffList();
+        loadTable();
+      } else {
+        document.getElementById("loginError").innerText = "Incorrect password!";
+      }
+    }
+
+    function changePassword() {
+      const oldPass = prompt("Enter current password:");
+      if (oldPass !== adminPassword) return alert("Incorrect current password.");
+      const newPass = prompt("Enter new password:");
+      if (newPass) {
+        adminPassword = newPass;
+        localStorage.setItem("adminPassword", newPass);
+        alert("Password changed successfully!");
+      }
+    }
+
+    function toggleDarkMode() {
+      document.body.classList.toggle("dark");
+    }
+
+    function switchTab(tab) {
+      document.getElementById("dailyTab").classList.toggle("hidden", tab !== 'daily');
+      document.getElementById("monthlyTab").classList.toggle("hidden", tab !== 'monthly');
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove("active"));
+      document.querySelectorAll('.tab-btn')[tab === 'daily' ? 0 : 1].classList.add("active");
+    }
+
+    function addStaff() {
+      let name = prompt("Enter Staff Name:");
+      if (name && !staffList.includes(name)) {
+        staffList.push(name);
+        localStorage.setItem("staffList", JSON.stringify(staffList));
+        loadStaffList();
+      } else if (staffList.includes(name)) {
+        alert("Staff already exists.");
+      }
+    }
+
+    function loadStaffList() {
+      const select = document.getElementById("staffName");
+      const monthlySelect = document.getElementById("monthlyStaff");
+      select.innerHTML = '<option value="">-- Select Staff --</option>';
+      monthlySelect.innerHTML = '<option value="">-- Select Staff --</option>';
+      staffList.forEach(name => {
+        let opt1 = new Option(name, name);
+        let opt2 = new Option(name, name);
+        select.appendChild(opt1);
+        monthlySelect.appendChild(opt2);
+      });
+    }
+
+    function recordAttendance() {
+      const name = document.getElementById("staffName").value;
+      const date = document.getElementById("attendanceDate").value;
+      const status = document.getElementById("status").value;
+      if (!name || !date) return alert("Fill all fields.");
+      attendanceRecords.push({ name, date, status });
+      localStorage.setItem("attendance", JSON.stringify(attendanceRecords));
+      loadTable();
+    }
+
+    function loadTable() {
+      const tbody = document.querySelector("#attendanceTable tbody");
+      tbody.innerHTML = "";
+      attendanceRecords.forEach((r, i) => {
+        let tr = document.createElement("tr");
+        tr.innerHTML = `<td>${i+1}</td><td>${r.name}</td><td>${r.date}</td><td>${r.status}</td>
+          <td><span class="action-btn" onclick="deleteEntry(${i})">Delete</span></td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function deleteEntry(i) {
+      if (confirm("Delete this record?")) {
+        attendanceRecords.splice(i, 1);
+        localStorage.setItem("attendance", JSON.stringify(attendanceRecords));
+        loadTable();
+      }
+    }
+
+    function generateMonthlyReport() {
+      const name = document.getElementById("monthlyStaff").value;
+      const month = document.getElementById("reportMonth").value;
+      const tbody = document.querySelector("#monthlyTable tbody");
+      tbody.innerHTML = "";
+      const filtered = attendanceRecords.filter(r => r.name === name && r.date.startsWith(month));
+      filtered.forEach((r, i) => {
+        let tr = document.createElement("tr");
+        tr.innerHTML = `<td>${i+1}</td><td>${r.date}</td><td>${r.status}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+ async function downloadPDF() {
+  const { jsPDF } = window.jspdf || await import('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  const doc = new jsPDF();
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.text("Staff Attendance Report", 20, 20);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(12);
+
+  let y = 40;
+  let present = 0, absent = 0, leave = 0, halfDay = 0;
+
+  attendanceRecords.forEach((r, i) => {
+    doc.text(`${i + 1}. ${r.name} | ${r.date} | ${r.status}`, 20, y);
+    y += 10;
+    if (y > 270) {
+      doc.addPage();
+      y = 20;
+    }
+
+    // Count summary
+    if (r.status.toLowerCase() === "present") present++;
+    else if (r.status.toLowerCase() === "absent") absent++;
+    else if (r.status.toLowerCase() === "leave") leave++;
+    else if (r.status.toLowerCase() === "half-day") halfDay++;
+  });
+
+  // Summary at the end
+  if (y > 240) {
+    doc.addPage();
+    y = 20;
+  }
+
+  y += 10;
+  doc.setFont("helvetica", "bold");
+  doc.text("Summary:", 20, y);
+  y += 10;
+  doc.setFont("helvetica", "normal");
+  doc.text(`Total Present: ${present}`, 20, y); y += 10;
+  doc.text(`Total Absent: ${absent}`, 20, y); y += 10;
+  doc.text(`Total Leave: ${leave}`, 20, y); y += 10;
+  doc.text(`Total Half-Day: ${halfDay}`, 20, y);
+
+  doc.save("Attendance_Report.pdf");
+}
+
+  </script>
+  <style>
+    :root {
+      --bg: #f0f4f8;
+      --text: #000;
+      --container-bg: white;
+      --header-bg: #2c3e50;
+      --tab-bg: #ccc;
+      --tab-active-bg: #28a745;
+      --tab-active-text: #fff;
+    }
+
+    body.dark {
+      --bg: #121212;
+      --text: #f0f0f0;
+      --container-bg: #1e1e1e;
+      --header-bg: #000;
+      --tab-bg: #333;
+      --tab-active-bg: #4caf50;
+      --tab-active-text: #fff;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 0;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    header {
+      background: var(--header-bg);
+      color: white;
+      padding: 20px;
+      text-align: center;
+      font-size: 1.5rem;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 20px auto;
+      background: var(--container-bg);
+      padding: 20px;
+      border-radius: 10px;
+    }
+
+    .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+
+    .tabs button {
+      flex: 1;
+      padding: 10px;
+      font-weight: bold;
+      border: none;
+      background: var(--tab-bg);
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .tabs button.active {
+      background: var(--tab-active-bg);
+      color: var(--tab-active-text);
+    }
+
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    label { display: block; margin-bottom: 5px; font-weight: bold; }
+    select, input[type="text"], input[type="date"], input[type="month"], input[type="password"] {
+      width: 100%;
+      padding: 8px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+      background: #fff;
+      color: #000;
+    }
+
+    button {
+      background: #28a745;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+
+    th, td {
+      border: 1px solid #ddd;
+      padding: 10px;
+      text-align: center;
+    }
+
+    .hidden { display: none; }
+    .action-btn { color: red; cursor: pointer; }
+
+    #loginContainer {
+      max-width: 400px;
+      margin: 100px auto;
+      background: var(--container-bg);
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+      text-align: center;
+    }
+
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    @media (max-width: 768px) {
+      .tabs button {
+        flex: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="loginContainer">
+    <h2>Admin Login</h2>
+    <input type="password" id="adminPass" placeholder="Enter Admin Password" />
+    <br><br>
+    <button onclick="login()">Login</button>
+    <p id="loginError" style="color:red;"></p>
+  </div>
+
+  <div class="hidden" id="mainApp">
+    <header>
+      <div class="top-bar">
+        <div>COLONEL'S LIBRARY & STUDY CIRCLE <br><small>STAFF ATTENDANCE SYSTEM</small></div>
+        <div>
+          <button onclick="toggleDarkMode()">🌙 Dark Mode</button>
+          <button onclick="changePassword()">🔒 Change Password</button>
+        </div>
+      </div>
+    </header>
+    <div class="container">
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('daily')">Daily Attendance</button>
+        <button class="tab-btn" onclick="switchTab('monthly')">Monthly Report</button>
+      </div>
+
+      <div id="dailyTab">
+        <div class="form-group">
+          <label>Staff Name:</label>
+          <select id="staffName">
+            <option value="">-- Add a staff member first --</option>
+          </select>
+          <button onclick="addStaff()">Add New Staff</button>
+        </div>
+
+        <div class="form-group">
+          <label>Date:</label>
+          <input type="date" id="attendanceDate" />
+        </div>
+
+        <div class="form-group">
+          <label>Attendance Status:</label>
+          <select id="status">
+            <option>Present</option>
+            <option>Absent</option>
+            <option>Leave</option>
+            <option>Half-Day</option>
+          </select>
+        </div>
+
+        <button onclick="recordAttendance()">Record Attendance</button>
+        <button onclick="downloadPDF()">Export to PDF</button>
+
+        <table id="attendanceTable">
+          <thead>
+            <tr>
+              <th> Sr. No.</th>
+              <th>Staff Name</th>
+              <th>Date</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div id="monthlyTab" class="hidden">
+        <div class="form-group">
+          <label>Select Staff:</label>
+          <select id="monthlyStaff"></select>
+        </div>
+        <div class="form-group">
+          <label>Select Month:</label>
+          <input type="month" id="reportMonth" />
+        </div>
+        <button onclick="generateMonthlyReport()">Generate Report</button>
+
+        <table id="monthlyTable">
+          <thead>
+            <tr>
+              <th>No.</th>
+              <th>Date</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+
+
